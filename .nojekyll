@@ -1,0 +1,3 @@
+GitHub Pages runs Jekyll by default, and Jekyll silently drops every path
+starting with a dot -- including .well-known, which OWOX must fetch to accept
+this plugin. This file turns Jekyll off.

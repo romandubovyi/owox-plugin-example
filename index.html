@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OWOX Example Plugin</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        margin: 0;
+        padding: 2rem;
+        font: 14px/1.5 system-ui, sans-serif;
+      }
+      h1 { font-size: 1.1rem; margin: 0 0 1rem; }
+      section { margin-bottom: 1.5rem; }
+      pre {
+        margin: 0;
+        padding: 0.75rem;
+        overflow-x: auto;
+        border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+        border-radius: 6px;
+      }
+      button { padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer; }
+      .status { font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <h1>OWOX example plugin</h1>
+
+    <section>
+      <div class="status" id="status">Waiting for the OWOX host…</div>
+    </section>
+
+    <section>
+      <strong>Context received from the host</strong>
+      <pre id="context">—</pre>
+    </section>
+
+    <section>
+      <button id="call" disabled>Call the OWOX API</button>
+      <p>
+        Until the runtime authorization endpoint ships, this is expected to fail —
+        the host cannot mint a token, so the call is refused rather than sent.
+      </p>
+      <pre id="result">—</pre>
+    </section>
+
+    <script type="module">
+      /*
+       * The handshake, implemented inline.
+       *
+       * @owox/plugin-sdk is not published to npm yet and GitHub Pages runs no build
+       * step, so this speaks the protocol directly. It is deliberately identical to
+       * what the SDK does, so the host bridge is exercised for real.
+       */
+      const PROTOCOL_VERSION = 1;
+
+      const statusEl = document.getElementById('status');
+      const contextEl = document.getElementById('context');
+      const resultEl = document.getElementById('result');
+      const callButton = document.getElementById('call');
+
+      let port;
+      const pending = new Map();
+
+      function connect() {
+        return new Promise((resolve, reject) => {
+          if (window.parent === window) {
+            reject(new Error('Not running inside an OWOX plugin frame'));
+            return;
+          }
+
+          const announce = () => {
+            window.parent.postMessage({ owox: 'plugin-ready', v: PROTOCOL_VERSION }, '*');
+          };
+
+          const onMessage = event => {
+            // Identity, not origin: a sandboxed frame has an opaque origin, so there
+            // is nothing meaningful to compare.
+            if (event.source !== window.parent) return;
+            if (event.data?.owox !== 'host-init' || event.ports.length !== 1) return;
+            if (port) return;
+
+            window.removeEventListener('message', onMessage);
+            clearInterval(announcer);
+            clearTimeout(deadline);
+
+            port = event.ports[0];
+            port.onmessage = message => {
+              const waiting = pending.get(message.data?.id);
+              if (!waiting) return;
+              pending.delete(message.data.id);
+              waiting(message.data);
+            };
+            port.start();
+            port.postMessage({ owox: 'plugin-hello', nonce: event.data.nonce });
+
+            resolve(event.data.context);
+          };
+
+          window.addEventListener('message', onMessage);
+          announce();
+
+          const announcer = setInterval(announce, 250);
+          const deadline = setTimeout(() => {
+            window.removeEventListener('message', onMessage);
+            clearInterval(announcer);
+            reject(new Error('The OWOX host did not complete the handshake'));
+          }, 10000);
+        });
+      }
+
+      function request(payload) {
+        return new Promise(resolve => {
+          const id = crypto.randomUUID();
+          pending.set(id, resolve);
+          port.postMessage({ ...payload, id });
+        });
+      }
+
+      try {
+        const context = await connect();
+        statusEl.textContent = 'Connected to the OWOX host';
+        contextEl.textContent = JSON.stringify(context, null, 2);
+        callButton.disabled = false;
+
+        callButton.addEventListener('click', async () => {
+          resultEl.textContent = 'Calling…';
+          const response = await request({
+            kind: 'api',
+            method: 'GET',
+            path: '/api/data-marts',
+          });
+          resultEl.textContent = JSON.stringify(response, null, 2);
+        });
+      } catch (error) {
+        statusEl.textContent = error.message;
+      }
+    </script>
+  </body>
+</html>
