@@ -1,6 +1,6 @@
 {
   "name": "Example Plugin",
-  "description": "A minimal plugin used to exercise the OWOX plugin gallery end to end.",
+  "description": "Version 1.1.0. If you can read this in OWOX, Check and update moved the installation to a newer version.",
   "delivery": {
     "type": "remote",
     "url": "https://romandubovyi.github.io/owox-plugin-example/"
