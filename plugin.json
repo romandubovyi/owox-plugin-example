@@ -1,5 +1,5 @@
 {
-  "name": "Example Plugin",
+  "name": "Example Plugin Check and update moved the installation to a newer version",
   "description": "Version 1.1.0. If you can read this in OWOX, Check and update moved the installation to a newer version.",
   "delivery": {
     "type": "remote",
