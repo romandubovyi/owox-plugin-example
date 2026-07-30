@@ -1,6 +1,6 @@
 {
-  "name": "Example Plugin Check and update moved the installation to a newer version",
-  "description": "Version 1.1.0. If you can read this in OWOX, Check and update moved the installation to a newer version.",
+  "name": "Data Marts Cards",
+  "description": "Shows the project's data marts as a card grid: status, storage, source, triggers and reports at a glance.",
   "delivery": {
     "type": "remote",
     "url": "https://romandubovyi.github.io/owox-plugin-example/"

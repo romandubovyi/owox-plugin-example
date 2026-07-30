@@ -3,62 +3,136 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OWOX Example Plugin</title>
+    <title>Data Marts Cards</title>
     <style>
-      :root { color-scheme: light dark; }
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #64748b;
+        --line: #e2e8f0;
+        --chip: #f1f5f9;
+        --published: #059669;
+        --draft: #b45309;
+      }
+      :root[data-theme='dark'] {
+        --bg: #0b1220;
+        --card: #111a2b;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --line: #1e293b;
+        --chip: #1e293b;
+        --published: #34d399;
+        --draft: #fbbf24;
+      }
+
+      * { box-sizing: border-box; }
+
       body {
         margin: 0;
-        padding: 2rem;
-        font: 14px/1.5 system-ui, sans-serif;
+        padding: 1.5rem;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
       }
-      h1 { font-size: 1.1rem; margin: 0 0 1rem; }
-      section { margin-bottom: 1.5rem; }
-      pre {
-        margin: 0;
-        padding: 0.75rem;
-        overflow-x: auto;
-        border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-        border-radius: 6px;
+
+      header {
+        display: flex;
+        align-items: baseline;
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
       }
-      button { padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer; }
-      .status { font-weight: 600; }
+      h1 { font-size: 1.05rem; margin: 0; }
+      .summary { color: var(--muted); }
+
+      /* The point of this plugin: a card grid, not the app's table. */
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 0.875rem;
+      }
+
+      article {
+        display: flex;
+        flex-direction: column;
+        gap: 0.625rem;
+        padding: 0.875rem 1rem;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+
+      .top {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
+      .title { font-weight: 600; }
+      .desc {
+        color: var(--muted);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+
+      .status {
+        flex: none;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      .status[data-status='PUBLISHED'] { color: var(--published); }
+      .status[data-status='DRAFT'] { color: var(--draft); }
+
+      .tags { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+      .tag {
+        padding: 0.125rem 0.5rem;
+        background: var(--chip);
+        border-radius: 999px;
+        font-size: 0.75rem;
+      }
+
+      footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin-top: auto;
+        padding-top: 0.5rem;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 0.75rem;
+      }
+
+      .message { color: var(--muted); }
+      .message strong { color: var(--text); }
     </style>
   </head>
   <body>
-    <h1>OWOX example plugin</h1>
+    <header>
+      <h1>Data Marts</h1>
+      <span class="summary" id="summary">connecting…</span>
+    </header>
 
-    <section>
-      <div class="status" id="status">Waiting for the OWOX host…</div>
-    </section>
-
-    <section>
-      <strong>Context received from the host</strong>
-      <pre id="context">—</pre>
-    </section>
-
-    <section>
-      <button id="call" disabled>Call the OWOX API</button>
-      <p>
-        Until the runtime authorization endpoint ships, this is expected to fail —
-        the host cannot mint a token, so the call is refused rather than sent.
-      </p>
-      <pre id="result">—</pre>
-    </section>
+    <div class="grid" id="grid"></div>
+    <p class="message" id="message"></p>
 
     <script type="module">
       /*
        * The handshake, implemented inline.
        *
-       * @owox/plugin-sdk is not published to npm yet and GitHub Pages runs no build
-       * step, so this speaks the protocol directly. It is deliberately identical to
-       * what the SDK does, so the host bridge is exercised for real.
+       * GitHub Pages runs no build step, so this speaks the protocol directly rather
+       * than importing @owox/plugin-sdk. It is deliberately identical to what the SDK
+       * does, so the host bridge is exercised for real.
        */
       const PROTOCOL_VERSION = 1;
 
-      const statusEl = document.getElementById('status');
-      const contextEl = document.getElementById('context');
-      const resultEl = document.getElementById('result');
-      const callButton = document.getElementById('call');
+      const summaryEl = document.getElementById('summary');
+      const gridEl = document.getElementById('grid');
+      const messageEl = document.getElementById('message');
 
       let port;
       const pending = new Map();
@@ -93,7 +167,11 @@
               waiting(message.data);
             };
             port.start();
-            port.postMessage({ owox: 'plugin-hello', nonce: event.data.nonce });
+            port.postMessage({
+              owox: 'plugin-hello',
+              v: PROTOCOL_VERSION,
+              nonce: event.data.nonce,
+            });
 
             resolve(event.data.context);
           };
@@ -118,23 +196,115 @@
         });
       }
 
-      try {
-        const context = await connect();
-        statusEl.textContent = 'Connected to the OWOX host';
-        contextEl.textContent = JSON.stringify(context, null, 2);
-        callButton.disabled = false;
+      /** Follows nextOffset: a single page would silently hide the rest. */
+      async function loadDataMarts() {
+        const items = [];
+        let offset;
 
-        callButton.addEventListener('click', async () => {
-          resultEl.textContent = 'Calling…';
+        do {
           const response = await request({
             kind: 'api',
             method: 'GET',
             path: '/api/data-marts',
+            ...(offset === undefined ? {} : { query: { offset: String(offset) } }),
           });
-          resultEl.textContent = JSON.stringify(response, null, 2);
+
+          if (!response.ok) throw response.error;
+
+          items.push(...response.body.items);
+          offset = response.body.nextOffset;
+        } while (offset !== null && offset !== undefined);
+
+        return items;
+      }
+
+      // SQL / TABLE / VIEW / TABLE_PATTERN / CONNECTOR, said the way a person would.
+      const DEFINITIONS = {
+        SQL: 'SQL query',
+        TABLE: 'Table',
+        VIEW: 'View',
+        TABLE_PATTERN: 'Table pattern',
+      };
+
+      const source = mart =>
+        mart.definitionType === 'CONNECTOR' && mart.connectorSourceName
+          ? `${mart.connectorSourceName} connector`
+          : (DEFINITIONS[mart.definitionType] ?? mart.definitionType);
+
+      const owner = mart =>
+        mart.businessOwnerUsers?.[0]?.fullName ??
+        mart.technicalOwnerUsers?.[0]?.fullName ??
+        mart.createdByUser?.fullName ??
+        'Unassigned';
+
+      const changed = mart =>
+        new Date(mart.modifiedAt).toLocaleDateString(undefined, {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
         });
+
+      function card(mart) {
+        const article = document.createElement('article');
+
+        // Built with textContent throughout: a data mart title is someone else's input,
+        // and this page renders it inside a frame that holds no credential precisely so
+        // nothing here can be turned into a credential problem.
+        const top = article.appendChild(document.createElement('div'));
+        top.className = 'top';
+
+        const title = top.appendChild(document.createElement('span'));
+        title.className = 'title';
+        title.textContent = mart.title;
+
+        const status = top.appendChild(document.createElement('span'));
+        status.className = 'status';
+        status.dataset.status = mart.status;
+        status.textContent = mart.status;
+
+        const desc = article.appendChild(document.createElement('div'));
+        desc.className = 'desc';
+        desc.textContent = mart.description || 'No description';
+
+        const tags = article.appendChild(document.createElement('div'));
+        tags.className = 'tags';
+        for (const label of [mart.storage?.title, source(mart)].filter(Boolean)) {
+          const tag = tags.appendChild(document.createElement('span'));
+          tag.className = 'tag';
+          tag.textContent = label;
+        }
+
+        const footer = article.appendChild(document.createElement('footer'));
+        const left = footer.appendChild(document.createElement('span'));
+        left.textContent = `${mart.triggersCount} triggers · ${mart.reportsCount} reports`;
+        const right = footer.appendChild(document.createElement('span'));
+        right.textContent = `${owner(mart)} · ${changed(mart)}`;
+
+        return article;
+      }
+
+      try {
+        const context = await connect();
+        document.documentElement.dataset.theme = context.theme;
+
+        summaryEl.textContent = 'loading…';
+        const marts = await loadDataMarts();
+
+        const published = marts.filter(mart => mart.status === 'PUBLISHED').length;
+        summaryEl.textContent = `${marts.length} total · ${published} published`;
+
+        gridEl.append(...marts.map(card));
+        if (marts.length === 0) {
+          messageEl.textContent = 'This project has no data marts yet.';
+        }
       } catch (error) {
-        statusEl.textContent = error.message;
+        summaryEl.textContent = '';
+        // The host reports a suspended plugin distinctly, and it is not a failure of
+        // this plugin: the installation is intact and will work again.
+        messageEl.textContent =
+          error?.code === 'SUSPENDED'
+            ? 'This plugin is temporarily unavailable. An administrator suspended it; your installation is untouched.'
+            : (error?.message ?? String(error));
       }
     </script>
   </body>

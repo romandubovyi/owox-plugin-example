@@ -1,10 +1,11 @@
-# OWOX example plugin
+# Data Marts Cards
 
-A deliberately minimal plugin for exercising the OWOX Data Marts plugin gallery from
+A small OWOX Data Marts plugin: it reads the project's data marts through the host
+bridge and lays them out as a card grid — status, storage, source, triggers and reports
+on each card — rather than the table the app itself shows.
+
+It doubles as the reference plugin for exercising the gallery end to end, from
 publication through to opening it in its sandboxed iframe.
-
-It shows the context the host hands over, and offers a button that calls the OWOX API
-through the host bridge.
 
 ## What this repository has to contain, and why
 
@@ -31,8 +32,15 @@ The tag must be exactly `MAJOR.MINOR.PATCH`, optionally `v`-prefixed. Prerelease
 identifiers and build metadata are refused: the highest eligible version becomes current
 for everyone immediately and nobody can pin an older one.
 
-## Known limitation while the runtime authorization endpoint is pending
+## What it needs from OWOX
 
-The handshake completes and the context arrives, because neither needs a credential.
-The **Call the OWOX API** button fails, because the host cannot mint a runtime token yet.
-That failure is the expected state, not a defect in this plugin.
+`GET /api/data-marts`, and nothing else. The plugin holds no credential: the host page
+mints a short-lived runtime token, keeps it out of this frame entirely, and makes the
+call itself — so the list is exactly what the member who installed the plugin can see.
+
+Pagination is followed to the end, so a project with more data marts than one page still
+shows all of them.
+
+If the deployment cannot mint a runtime token, the page says so instead of rendering an
+empty grid. A deployment-wide suspension is reported as its own message: the installation
+is intact and returns when an administrator resumes the plugin.
