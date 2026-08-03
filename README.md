@@ -34,12 +34,33 @@ for everyone immediately and nobody can pin an older one.
 
 ## What it needs from OWOX
 
-`GET /api/data-marts`, and nothing else. The plugin holds no credential: the host page
-mints a short-lived runtime token, keeps it out of this frame entirely, and makes the
-call itself — so the list is exactly what the member who installed the plugin can see.
+`GET /api/data-marts` for the grid. The plugin holds no credential: the host page mints a
+short-lived runtime token, keeps it out of this frame entirely, and makes the call itself
+— so the list is exactly what the member who installed the plugin can see.
 
 Pagination is followed to the end, so a project with more data marts than one page still
 shows all of them.
+
+Below the grid it also runs three probes against that same runtime token, because the
+interesting property of the token is as much what it cannot do:
+
+| Probe | Expected |
+| --- | --- |
+| `GET /api/data-marts` | allowed — ordinary member authority |
+| `GET /api/plugins/installations` | allowed — reads are the authority the bridge exists to carry |
+| `POST /api/plugins/installations/{id}/runtime-token` | refused — a plugin cannot mint itself a token |
+
+The last row is the boundary. The mutating plugin-lifecycle routes — install, uninstall,
+update — refuse a runtime token for the same reason, and are deliberately not probed here:
+a probe that passed would have side effects.
+
+## Opening a page in OWOX
+
+Clicking a card asks the host to route to the data mart, with
+`{ kind: 'navigate', path: '/ui/{projectId}/data-marts/{id}' }`. That is a different
+request from `openExternal`, which opens an `https://` link in a new tab and drops
+anything else. The host validates the path against its own origin, so a plugin cannot turn
+navigation into a way out of the app.
 
 If the deployment cannot mint a runtime token, the page says so instead of rendering an
 empty grid. A deployment-wide suspension is reported as its own message: the installation
