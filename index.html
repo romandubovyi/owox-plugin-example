@@ -246,7 +246,7 @@
             kind: 'api',
             method: 'GET',
             path: '/api/data-marts',
-            ...(offset === undefined ? {} : { query: { offset: String(offset) } }),
+            ...(offset === undefined ? {} : { query: [['offset', String(offset)]] }),
           });
 
           if (!response.ok) throw response.error;
@@ -390,7 +390,7 @@
 
         document.getElementById('runtime-note').textContent =
           `Every call above left this frame with no credential on it. The host attached an access token ` +
-          `minted for this installation, acting as ${context.member?.fullName ?? 'this member'} in project ` +
+          `minted for this installation, acting as member ${context.userId} in project ` +
           `${context.projectId}. The last probe is the boundary: the endpoint that mints those tokens ` +
           `refuses plugin authentication, so this page cannot obtain one of its own.`;
 
